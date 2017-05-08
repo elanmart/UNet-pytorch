@@ -10,9 +10,8 @@ We use three datasets publicly available on the net:
 
 # Papers
 We consider using one of the following architectures
-
-# Todo
-
-
-
+* [1](https://arxiv.org/pdf/1611.02064.pdf)
+* [2](https://arxiv.org/pdf/1609.01103.pdf)
+* [3](https://arxiv.org/pdf/1505.04597.pdf)
+* [4](https://arxiv.org/pdf/1612.05360v2.pdf)
 
