@@ -65,6 +65,7 @@ def plot_confusion_matrix(cm, normalize=False):
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
 
+
 def evaluate(true_masks, pred_raw):
     """ Evaluate the performance of the model on a set of ground truths and predictions
 
