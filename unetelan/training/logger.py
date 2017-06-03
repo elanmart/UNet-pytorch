@@ -1,12 +1,7 @@
-# Code referenced from https://gist.github.com/gyglim/1f8dfb1b5c82627ae3efcfbbadb9f514
 import tensorflow as tf
 import numpy as np
 import scipy.misc
-
-try:
-    from StringIO import StringIO  # Python 2.7
-except ImportError:
-    from io import BytesIO  # Python 3.x
+from io import BytesIO  # Python 3.x
 
 
 class Logger(object):
@@ -25,10 +20,7 @@ class Logger(object):
         img_summaries = []
         for i, img in enumerate(images):
             # Write the image to a string
-            try:
-                s = StringIO()
-            except:
-                s = BytesIO()
+            s = BytesIO()
             scipy.misc.toimage(img).save(s, format="png")
 
             # Create an Image object
