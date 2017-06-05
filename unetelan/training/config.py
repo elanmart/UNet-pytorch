@@ -7,13 +7,16 @@ class Config:
     __pad          = 1
     __n_classes    = 2
     __n_channels   = 3
+    __n_epoch      = 8
 
-    def __init__(self, bn=__bn, dp=__dp, n_layers=__n_layers, filters_base=__filters_base,
+    def __init__(self, ID, bn=__bn, dp=__dp, n_layers=__n_layers, filters_base=__filters_base, n_epoch=__n_epoch,
                  patch_border=__patch_border, pad=__pad, n_classes=__n_classes, n_channels=__n_channels):
 
+        self.ID           = ID
         self.bn           = bn
         self.dp           = dp
         self.n_layers     = n_layers
+        self.n_epoch      = n_epoch
         self.filters_base = filters_base
         self.patch_border = patch_border
         self.pad          = pad
@@ -29,4 +32,3 @@ class Metadata:
         self.crop_sz = crop_sz
         self.step_sz = step_sz
         self.img_sz = img_sz
-

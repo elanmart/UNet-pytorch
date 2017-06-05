@@ -9,7 +9,7 @@ from torch.autograd import Variable as Var
 def adjust_lr(optimizer, alpha, lr):
     lr /= alpha
     for param_group in optimizer.param_groups:
-        param_group['lr'] = LR
+        param_group['lr'] = lr
 
     return lr
 

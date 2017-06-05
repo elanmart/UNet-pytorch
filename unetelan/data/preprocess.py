@@ -39,6 +39,28 @@ class HRFLoader:
         return self._load(self.test)
 
 
+class DRVLoader:
+    def __init__(self, path):
+        self.path = path
+        self.train_path = os.path.join(path, "training")
+        self.test_path  = os.path.join(path, "test")
+
+    def _load(self, path):
+        images_path = os.path.join(path, 'images')
+        masks_path  = os.path.join(path, '1st_manual')
+
+        images = [Image.open(os.path.join(images_path, f'{name}')) for name in sorted(os.listdir(images_path))]
+        masks  = [Image.open(os.path.join(masks_path,  f'{name}')) for name in sorted(os.listdir(masks_path))]
+
+        return images, masks
+
+    def get_train(self):
+        return self._load(self.train_path)
+
+    def get_test(self):
+        return self._load(self.test_path)
+
+
 class Rotate:
     def __init__(self, n, max_angle):
         self.n = n
@@ -120,7 +142,7 @@ class RegularCrop:
     def pad_Image(self, img):
         n_dim = len(np.asarray(img).shape)
 
-        tup = [(self.step, 0), (self.step, 0)]
+        tup = [(self.step, self.step), (self.step, self.step)]
         if n_dim > 2:
             tup += [(0, 0)]
 
@@ -302,5 +324,3 @@ def make_collate(divide_masks=False):
 
         return images, masks
     return collate_fn
-
-
