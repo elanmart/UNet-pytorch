@@ -3,9 +3,6 @@ import torch.nn as nn
 
 from torch.nn import functional as F
 
-from ..training.config import Config
-
-
 def noop(x):
     return x
 
@@ -57,7 +54,7 @@ class UpConv(nn.Module):
 
 
 class UNet(nn.Module):
-    def __init__(self, cfg: Config):
+    def __init__(self, cfg):
         super().__init__()
 
         self.cfg = cfg
@@ -78,20 +75,21 @@ class UNet(nn.Module):
             module = DoubleConv(input_size, filter_size, self.cfg.pad, self.cfg.dp)
 
             self.left.append(module)
-            self._register(module)
+            self._register(module, "_left")
 
             upconv = UpConv(2 * filter_size, filter_size, self.cfg.pad)
             module = DoubleConv(2 * filter_size, filter_size, self.cfg.pad, self.cfg.dp)
 
-            self.right.append((upconv, module))
-            self._register(upconv)
-            self._register(module)
+            if i != len(self.filter_sizes) - 1:
+                self.right.append((upconv, module))
+                self._register(upconv, "_right_upconv")
+                self._register(module, "_right")
 
             if i == 0:
                 self.output_conv = nn.Conv2d(self.filter_sizes[0], self.cfg.n_classes, 1)
 
-    def _register(self, module):
-        setattr(self, f'module_${self._i}', module)
+    def _register(self, module, suffix=""):
+        setattr(self, f'module_{self._i}{suffix}', module)
         self._i += 1
 
     def contract(self, x):

@@ -1,4 +1,5 @@
 import glob
+import os
 import re
 
 import numpy.random as npr
@@ -6,28 +7,36 @@ import torch as th
 from torch.utils import data
 from torch.utils.data.dataloader import default_collate
 from torchvision.transforms import *
+from tqdm import tqdm
 
 np.random.seed(0)
 
 
 class HRFLoader:
-    def __init__(self, path, h=True, g=True, dr=True):
-        code = ['h'] * h + ['g'] * g + ['dr'] * dr
-        code = "|".join(code)
-        code = f'(.*)(\d\d_)({code}).jpg'
+    test = ['07_dr', '05_g', '08_h', '14_h', '01_g', '15_dr']
 
-        candidates = glob.glob(f'{path}/*.jpg') + glob.glob(f'{path}/*.JPG')
-        self.filenames = [fname for fname in candidates if re.match(code, fname, flags=re.IGNORECASE)]
+    def __init__(self, path):
+        self.path = path
 
-    def __call__(self):
-        images = []
-        masks = []
+        candidates = os.listdir(path)
+        candidates = [name for name in candidates if name.endswith('.jpg')]
+        candidates = {name[:-4] for name in candidates}
+        candidates = {name for name in candidates if not name.endswith("_mask")}
+        candidates = {name for name in candidates if name not in self.test}
 
-        for fname in self.filenames:
-            images.append(Image.open(fname))
-            masks.append(Image.open(fname.replace("JPG", "jpg").replace("jpg", "tif")))
+        self.train = list(sorted(list(candidates)))
+
+    def _load(self, lst):
+        images = [Image.open(os.path.join(self.path, f'{name}.jpg')) for name in lst]
+        masks  = [Image.open(os.path.join(self.path, f'{name}.tif')) for name in lst]
 
         return images, masks
+
+    def get_train(self):
+        return self._load(self.train)
+
+    def get_test(self):
+        return self._load(self.test)
 
 
 class Rotate:
@@ -39,7 +48,7 @@ class Rotate:
         ret_images = []
         ret_masks = []
 
-        for img, msk in zip(images, masks):
+        for img, msk in tqdm(zip(images, masks), desc="{:<10}".format("Rotate"), total=len(images)):
             ret_images += [img]
             ret_masks += [msk]
 
@@ -86,7 +95,7 @@ class RandomCrop:
         ret_images = []
         ret_masks = []
 
-        for img, msk in zip(images, masks):
+        for img, msk in tqdm(zip(images, masks), desc="{:<10}".format("Crop"), total=len(images)):
             for _ in range(self.n):
                 img_crop, msk_crop = self.crop(img, msk)
 
@@ -94,6 +103,87 @@ class RandomCrop:
                 ret_masks.append(msk_crop)
 
         return ret_images, ret_masks
+
+
+class RegularCrop:
+    def __init__(self, size, step):
+        self.size = size
+        self.step = step
+
+    def _pad(self, img, tup):
+        img = np.asarray(img)
+        img = np.pad(img, tup, 'constant', constant_values=0)
+        img = Image.fromarray(img)
+
+        return img
+
+    def pad_Image(self, img):
+        n_dim = len(np.asarray(img).shape)
+
+        tup = [(self.step, 0), (self.step, 0)]
+        if n_dim > 2:
+            tup += [(0, 0)]
+
+        return self._pad(img, tup)
+
+    def pad_Crop(self, img, pad_right, pad_down):
+        n_dim = len(np.asarray(img).shape)
+
+        tup = [(0, pad_down), (0, pad_right)]
+        if n_dim > 2:
+            tup += [(0, 0)]
+
+        return self._pad(img, tup)
+
+    def __call__(self, images, masks):
+        ret_images = []
+        ret_masks = []
+
+        for img, msk in tqdm(zip(images, masks), desc="{:<10}".format("RegCrop"), total=len(images)):
+            img  = self.pad_Image(img)
+            msk  = self.pad_Image(msk)
+            w, h = img.size
+
+            upper = 0
+            while upper < h:
+
+                left = 0
+                while left < w:
+                    right = left  + self.size
+                    down  = upper + self.size
+
+                    pad_right = max(0, right - w)
+                    pad_down  = max(0, down - h)
+
+                    right = min(right, w)
+                    down  = min(down, h)
+
+                    box = (left, upper, right, down)
+                    box = tuple(map(int, box))
+
+                    img_crop = self.pad_Crop(img=img.crop(box).copy(), pad_right=pad_right, pad_down=pad_down)
+                    msk_crop = self.pad_Crop(img=msk.crop(box).copy(), pad_right=pad_right, pad_down=pad_down)
+
+                    ret_images.append(img_crop)
+                    ret_masks.append(msk_crop)
+
+                    left += self.step
+                upper += self.step
+
+        return ret_images, ret_masks
+
+
+def DriveCrop():
+    def f(images, masks):
+        for i, (img, msk) in tqdm(enumerate(zip(images, masks)), desc="DriveCrop", total=len(images)):
+            img = img.crop((0, 10, 565, 584-9)).copy()
+            msk = msk.crop((0, 10, 565, 584-9)).copy()
+
+            images[i] = img
+            masks[i]  = msk
+
+        return images, masks
+    return f
 
 
 def RGBConverter():
@@ -108,12 +198,12 @@ def RGBConverter():
 
 def ToNumpy():
     def f(images, masks):
-        for i, (img, msk) in enumerate(zip(images, masks)):
+        for i, (img, msk) in tqdm(enumerate(zip(images, masks)), desc="{:<10}".format("Numpy"), total=len(images)):
             img = np.array(img, dtype=np.float32)
             img /= 255.
 
             msk = np.array(msk, dtype=np.float32)
-            msk /= 255
+            msk /= 255.
 
             images[i] = img
             masks[i] = msk
@@ -125,29 +215,35 @@ def ToNumpy():
 
 def FeatureWiseStd(with_mean=True, with_std=True):
     def f(images, masks):
-        ret_images = []
-        for img in images:
-            img -= np.mean(img, axis=2, keepdims=True)
-            img /= np.std(img, axis=2, keepdims=True) + 1e-6
+        for i, img in enumerate(tqdm(images, desc="{:<10}".format("Std"))):
+            mu    = np.mean(img, axis=2, keepdims=True)
+            sigma = np.std(img, axis=2, keepdims=True) + 1e-6
 
-            ret_images.append((img))
+            if with_mean:
+                img = img - mu
+            if with_std:
+                img = img / (sigma+1e-6)
 
-        return ret_images, masks
+            images[i] = img
 
+        return images, masks
     return f
 
 
 def ChannelWiseStd(with_mean=True, with_std=True):
     def f(images, masks):
-        ret_images = []
-        for img in images:
-            img -= np.mean(img, axis=(0, 1), keepdims=True)
-            img /= np.std(img, axis=(0, 1), keepdims=True) + 1e-6
+        for i, img in enumerate(tqdm(images, desc="{:<10}".format("Std"))):
+            mu    = np.mean(img, axis=(0, 1), keepdims=True)
+            sigma = np.std(img, axis=(0, 1), keepdims=True) + 1e-6
 
-            ret_images.append((img))
+            if with_mean:
+                img = img - mu
+            if with_std:
+                img = img / (sigma+1e-6)
 
-        return ret_images, masks
+            images[i] = img
 
+        return images, masks
     return f
 
 
@@ -196,10 +292,15 @@ class ListDataset(th.utils.data.Dataset):
         return len(self.images)
 
 
-def collate_fn(batch):
-    batch = [(img, msk.type(th.FloatTensor)) for img, msk in batch]
-    images, masks = default_collate(batch)
+def make_collate(divide_masks=False):
+    def collate_fn(batch):
+        batch = [(img, msk.type(th.FloatTensor)) for img, msk in batch]
+        images, masks = default_collate(batch)
 
-    return images, masks
+        if divide_masks:
+            masks /= 255.
+
+        return images, masks
+    return collate_fn
 
 

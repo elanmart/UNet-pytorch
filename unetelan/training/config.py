@@ -19,3 +19,14 @@ class Config:
         self.pad          = pad
         self.n_classes    = n_classes
         self.n_channels   = n_channels
+
+
+class Metadata:
+    def __init__(self, k, n_rot, n_crop, crop_sz, step_sz, img_sz):
+        self.k     = k
+        self.n_rot = n_rot
+        self.n_crop = n_crop
+        self.crop_sz = crop_sz
+        self.step_sz = step_sz
+        self.img_sz = img_sz
+
