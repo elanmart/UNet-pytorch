@@ -68,6 +68,10 @@ class UNet(nn.Module):
 
         self.build()
 
+    def _register(self, module, suffix=""):
+        setattr(self, f'module_{self._i}{suffix}', module)
+        self._i += 1
+
     def build(self):
         self.pool = nn.MaxPool2d(2, 2)
 
@@ -87,10 +91,6 @@ class UNet(nn.Module):
 
             if i == 0:
                 self.output_conv = nn.Conv2d(self.filter_sizes[0], self.cfg.n_classes, 1)
-
-    def _register(self, module, suffix=""):
-        setattr(self, f'module_{self._i}{suffix}', module)
-        self._i += 1
 
     def contract(self, x):
         feat_maps = []
